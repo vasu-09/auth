@@ -15,17 +15,19 @@ import reactor.core.publisher.Mono;
 public class SmsClient {
 
     @Autowired
-    private  WebClient smsWebClient;
+    private WebClient smsWebClient;
     @Autowired
-    private  SmsProperties props;
+    private SmsProperties props;
+
 
     public SendSmsResponse sendOtpMessage(String message, String e164Mobile, boolean requestDlr) {
+        String providerMobile = e164Mobile.startsWith("+") ? e164Mobile.substring(1) : e164Mobile;
         SendSmsRequest req = new SendSmsRequest(
                 props.getApiKey(),
                 props.getClientId(),
                 props.getSenderId(),
                 message,
-                e164Mobile,
+                providerMobile,
                 props.getDlt().getTemplateId(),
                 null, null,
                 requestDlr ? "true" : null,
