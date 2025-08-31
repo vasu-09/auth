@@ -4,25 +4,40 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 /** Adjust field names to EXACTLY what the API expects (case-sensitive if required). */
 @Data
 public class SendSmsRequest {
+    @JsonProperty("ApiKey")
     private String ApiKey;
+    @JsonProperty("ClientId")
     private String ClientId;
+    @JsonProperty("SenderId")
     private String SenderId;
+    @JsonProperty("Message")
     private String Message;
+    @JsonProperty("MobileNumber")
     private String MobileNumber;
 
     // DLT
+    @JsonProperty("TemplateId")
     private String TemplateId;
 
     // Optional flags, keep nullable
+    @JsonProperty("Is_Unicode")
     private Boolean Is_Unicode;
+    @JsonProperty("Is_Flash")
     private Boolean Is_Flash;
-    private String IsRegisteredForDelivery; // "true" to request DLR callbacks
+    @JsonProperty("IsRegisteredForDelivery") // "true" to request DLR callbacks
+    private String IsRegisteredForDelivery;
+    @JsonProperty("ValidityPeriod")
     private String ValidityPeriod;
+    @JsonProperty("DataCoding")
     private String DataCoding;
+    @JsonProperty("scheduleTime")
     private String scheduleTime;
+    @JsonProperty("groupId")
     private String groupId;
 
     public SendSmsRequest() {
