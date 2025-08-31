@@ -18,7 +18,7 @@ import com.om.backend.util.PhoneNumberUtil;          // your util with toE164Ind
 
 import com.om.backend.util.SmsClient;
 import org.apache.commons.lang.RandomStringUtils;
-import org.springframework.data.redis.core.StringRedisTemplate;
+//import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +28,9 @@ import java.time.Instant;
 
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+//new code
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * OTP service backed by Redis for OTP storage & rate limiting, and your SMS provider for delivery.
@@ -37,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 public class OtpService {
 
     // ===== Injected deps (from your old class) =====
-    private final StringRedisTemplate redis;
+//    private final StringRedisTemplate redis;
     private final SmsProperties props;
     private final SmsClient smsClient;
     private final OtpMessageBuilder messageBuilder;
@@ -48,8 +51,23 @@ public class OtpService {
     private final JwtSigner jwtSigner;
     private final Clock clock;
 
-    public OtpService(StringRedisTemplate redis, SmsProperties props, SmsClient smsClient, OtpMessageBuilder messageBuilder, OtpRepository otpRepo, UserRepository userRepo, JwtSigner jwtSigner, Clock clock) {
-        this.redis = redis;
+//    public OtpService(StringRedisTemplate redis, SmsProperties props, SmsClient smsClient, OtpMessageBuilder messageBuilder, OtpRepository otpRepo, UserRepository userRepo, JwtSigner jwtSigner, Clock clock) {
+//        this.redis = redis;
+// In‑memory stores
+private final ConcurrentMap<String, String> otpStore = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Instant> otpExpiry = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Long> minuteCounts = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Instant> minuteExpiry = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Long> hourCounts = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Instant> hourExpiry = new ConcurrentHashMap<>();
+
+    public OtpService(SmsProperties props,
+                      SmsClient smsClient,
+                      OtpMessageBuilder messageBuilder,
+                      OtpRepository otpRepo,
+                      UserRepository userRepo,
+                      JwtSigner jwtSigner,
+                      Clock clock) {
         this.props = props;
         this.smsClient = smsClient;
         this.messageBuilder = messageBuilder;
@@ -77,7 +95,9 @@ public class OtpService {
 
         // 3) store OTP in Redis with TTL (overwrite any existing)
         Duration ttl = Duration.ofMinutes(props.getOtp().getTtlMinutes());
-        redis.opsForValue().set(otpKey(phone), otp, ttl);
+//        redis.opsForValue().set(otpKey(phone), otp, ttl);
+        otpStore.put(phone, otp);
+        otpExpiry.put(phone, Instant.now(clock).plus(ttl));
 
         // 4) (optional) also persist to DB for audit/troubleshooting (comment out if not needed)
         if (props.getOtp().isPersistForAudit()) {
@@ -110,19 +130,27 @@ public class OtpService {
         String phone = PhoneNumberUtil.toE164India(rawPhone);
 
         // 1) fetch OTP from Redis
-        String key = otpKey(phone);
-        String expected = redis.opsForValue().get(key);
-        if (expected != null) {
+//        String key = otpKey(phone);
+//        String expected = redis.opsForValue().get(key);
+//        if (expected != null) {
             // Redis path (preferred)
+
+        String expected = otpStore.get(phone);
+        Instant exp = otpExpiry.get(phone);
+        Instant now = Instant.now(clock);
+        if (expected != null && exp != null && now.isBefore(exp)) {
             if (!otpCode.equals(expected)) {
                 throw new IllegalArgumentException("Invalid OTP");
             }
             // delete OTP (single-use)
-            redis.delete(key);
+//            redis.delete(key);
+            otpStore.remove(phone);
+            otpExpiry.remove(phone);
         } else if (props.getOtp().isPersistForAudit()) {
             // Optional DB fallback when auditing is enabled
             Optional<Otp> audit = otpRepo.findByPhoneNumber(phone);
-            if (audit.isEmpty() || Instant.now(clock).isAfter(audit.get().getExpiredAt())) {
+//            if (audit.isEmpty() || Instant.now(clock).isAfter(audit.get().getExpiredAt())) {
+            if (audit.isEmpty() || now.isAfter(audit.get().getExpiredAt())) {
                 throw new IllegalArgumentException("OTP expired or not requested");
             }
             if (!otpCode.equals(audit.get().getOtpCode())) {
@@ -188,25 +216,46 @@ public class OtpService {
     private void enforceRateLimits(String phone) {
         int perMinute = props.getOtp().getPerMinuteLimit();
         int perHour = props.getOtp().getPerHourLimit();
+        Instant now = Instant.now(clock);
 
         // minute window (60s)
-        Long minuteCount = redis.opsForValue().increment(rlMinuteKey(phone));
-        if (minuteCount != null && minuteCount == 1L) {
-            redis.expire(rlMinuteKey(phone), 60, TimeUnit.SECONDS);
-        }
-        if (minuteCount != null && minuteCount > perMinute) {
+//        Long minuteCount = redis.opsForValue().increment(rlMinuteKey(phone));
+//        if (minuteCount != null && minuteCount == 1L) {
+//            redis.expire(rlMinuteKey(phone), 60, TimeUnit.SECONDS);
+//        }
+//        if (minuteCount != null && minuteCount > perMinute) {
+        minuteExpiry.compute(phone, (k, exp) -> {
+            if (exp == null || now.isAfter(exp)) {
+                minuteCounts.put(k, 0L);
+                return now.plusSeconds(60);
+            }
+            return exp;
+        });
+        long minute = minuteCounts.merge(phone, 1L, Long::sum);
+        if (minute > perMinute) {
             throw new IllegalStateException("Too many OTP requests. Try again later.");
         }
 
         // daily window (24h)
-        Long hourCount = redis.opsForValue().increment(rlHourlyKey(phone));
-        if (hourCount != null && hourCount > perHour) {
+//        Long hourCount = redis.opsForValue().increment(rlHourlyKey(phone));
+//        if (hourCount != null && hourCount > perHour) {
+//            throw new IllegalStateException("Too many OTP requests. Try again later.");
+//        }
+//        if (hourCount != null && hourCount > perHour) {
+//                throw new IllegalStateException("Too many OTP requests. Try again later.");
+
+        hourExpiry.compute(phone, (k, exp) -> {
+            if (exp == null || now.isAfter(exp)) {
+                hourCounts.put(k, 0L);
+                return now.plusSeconds(3600);
+            }
+            return exp;
+        });
+        long hour = hourCounts.merge(phone, 1L, Long::sum);
+        if (hour > perHour) {
             throw new IllegalStateException("Too many OTP requests. Try again later.");
         }
-        if (hourCount != null && hourCount > perHour) {
-                throw new IllegalStateException("Too many OTP requests. Try again later.");
-            }
-        }
+    }
 
         /** Minimal signer abstraction expected to be provided elsewhere in your app. */
 
