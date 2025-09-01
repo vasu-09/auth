@@ -12,10 +12,12 @@ public class OtpMessageBuilder {
     @Autowired
     private  SmsProperties props;
 
-    /** Replace first {#var#} with OTP, second {#var#} with TTL minutes. */
+    /** Replace the {#var#} placeholder with the generated OTP. */
     public String build(String otp) {
         String content = props.getDlt().getContent();
         content = content.replaceFirst("\\{#var#\\}", otp);
+        // second placeholder => TTL minutes
+
         return content;
     }
 }
