@@ -143,7 +143,9 @@ private final ConcurrentMap<String, String> otpStore = new ConcurrentHashMap<>()
      */
     @Transactional
     public Long verifyOtp(String rawPhone, String otpCode) {
-        String phone = PhoneNumberUtil1.toE164India(rawPhone);
+        String phone = "NSN10".equalsIgnoreCase(props.getNumberFormat())
+                ? PhoneNumberUtil1.toIndiaNsn10(rawPhone)
+                : PhoneNumberUtil1.toIndia91NoPlus(rawPhone);
 
         // 1) fetch OTP from Redis
 //        String key = otpKey(phone);
