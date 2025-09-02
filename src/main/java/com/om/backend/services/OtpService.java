@@ -90,88 +90,40 @@ private final ConcurrentMap<String, String> otpStore = new ConcurrentHashMap<>()
     @Transactional(noRollbackFor = RuntimeException.class)
     public void sendOtp(String rawPhone) {
 
-        String e164 = PhoneNumberUtil1.toE164India(rawPhone);
 
-// choose the outgoing number per config
-        String providerMobile = "NSN10".equalsIgnoreCase(props.getNumberFormat())
-                ? PhoneNumberUtil1.toIndiaNsn10(rawPhone)        // 9876543210
-                : PhoneNumberUtil1.toIndia91NoPlus(rawPhone);    // 919876543210  (default in yml)
+        String phone = PhoneNumberUtil1.toE164India(rawPhone);
 
+        // 1) rate-limit (Redis counters)
+        enforceRateLimits(phone);
+
+        System.out.print(phone);
+
+        // 2) generate OTP using your config
         int digits = props.getOtp().getDigits();
         String otp = RandomStringUtils.randomNumeric(digits);
-       String message = messageBuilder.build(otp);
-// build request
-        SendSmsRequest req = new SendSmsRequest();
-        req.setApiKey(props.getApiKey());
-        req.setClientId(props.getClientId());
-        req.setSenderId(props.getSenderId());
-        req.setMessage(message);
-        req.setMobileNumber(providerMobile);
 
-        log.info("OTP send: e164={}, providerMobile={}, senderId={}, msgLen={}",
-                e164, providerMobile, req.getSenderId(), message.length());
-
-// send with retry fallback if provider says code 13:
-        SendSmsResponse resp = smsClient.sendOtpMessage(req, props.getTransport());
-        if (resp == null || (resp.getErrorCode() != null && resp.getErrorCode() == 13)) {
-            // flip format once & retry — many gateways accept only one of the two
-            String altMobile = providerMobile.startsWith("91")
-                    ? PhoneNumberUtil1.toIndiaNsn10(rawPhone)
-                    : PhoneNumberUtil1.toIndia91NoPlus(rawPhone);
-            req.setMobileNumber(altMobile);
-            log.warn("Provider rejected number format (code 13). Retrying with alt format: {}", altMobile);
-            resp = smsClient.sendOtpMessage(req, props.getTransport());
-        }
-
-        if (resp == null || (resp.getErrorCode() != null && resp.getErrorCode() != 0)) {
-            String code = (resp == null) ? "null" : String.valueOf(resp.getErrorCode());
-            String desc = (resp == null) ? "no response" : resp.getErrorDescription();
-            throw new RuntimeException("SMS send failed: " + desc + " (code " + code + ")");
-        }// 4) Call provider and handle error code
-
-
+        // 3) store OTP in Redis with TTL (overwrite any existing)
         Duration ttl = Duration.ofMinutes(props.getOtp().getTtlMinutes());
-        otpStore.put(providerMobile, otp);
-       otpExpiry.put(providerMobile, Instant.now(clock).plus(ttl));
-        // 5) Save OTP / proceed as you do today...
-        Otp row = otpRepo.findByPhoneNumber(providerMobile).orElseGet(Otp::new);
-            row.setPhoneNumber(providerMobile);
+//        redis.opsForValue().set(otpKey(phone), otp, ttl);
+        otpStore.put(phone, otp);
+        otpExpiry.put(phone, Instant.now(clock).plus(ttl));
+
+        // 4) (optional) also persist to DB for audit/troubleshooting (comment out if not needed)
+        if (props.getOtp().isPersistForAudit()) {
+            Otp row = otpRepo.findByPhoneNumber(phone).orElseGet(Otp::new);
+            row.setPhoneNumber(phone);
             row.setOtpCode(otp);
             row.setExpiredAt(Instant.now(clock).plus(ttl));
             otpRepo.save(row);
-//        String phone = PhoneNumberUtil1.toE164India(rawPhone);
-//
-//        // 1) rate-limit (Redis counters)
-//        enforceRateLimits(phone);
-//
-//        System.out.print(phone);
-//
-//        // 2) generate OTP using your config
-//        int digits = props.getOtp().getDigits();
-//        String otp = RandomStringUtils.randomNumeric(digits);
-//
-//        // 3) store OTP in Redis with TTL (overwrite any existing)
-//        Duration ttl = Duration.ofMinutes(props.getOtp().getTtlMinutes());
-////        redis.opsForValue().set(otpKey(phone), otp, ttl);
-//        otpStore.put(phone, otp);
-//        otpExpiry.put(phone, Instant.now(clock).plus(ttl));
-//
-//        // 4) (optional) also persist to DB for audit/troubleshooting (comment out if not needed)
-//        if (props.getOtp().isPersistForAudit()) {
-//            Otp row = otpRepo.findByPhoneNumber(phone).orElseGet(Otp::new);
-//            row.setPhoneNumber(phone);
-//            row.setOtpCode(otp);
-//            row.setExpiredAt(Instant.now(clock).plus(ttl));
-//            otpRepo.save(row);
-//        }
-//
-//        // Send via your SMS provider
-//        SendSmsResponse res = smsClient.sendOtpMessage(messageBuilder.build(otp), phone, true);
-//        if (res == null || !res.isOk()) {
-//            String desc = res != null && res.getErrorDescription() != null ? res.getErrorDescription() : "unknown";
-//            Integer code = res != null ? res.getErrorCode() : null;
-//            throw new RuntimeException("SMS send failed: " + desc + (code != null ? " (code " + code + ")" : ""));
-//        }
+        }
+
+        // Send via your SMS provider
+        SendSmsResponse res = smsClient.sendOtpMessage(messageBuilder.build(otp), phone, true);
+        if (res == null || !res.isOk()) {
+            String desc = res != null && res.getErrorDescription() != null ? res.getErrorDescription() : "unknown";
+            Integer code = res != null ? res.getErrorCode() : null;
+            throw new RuntimeException("SMS send failed: " + desc + (code != null ? " (code " + code + ")" : ""));
+        }
 
     }
 
