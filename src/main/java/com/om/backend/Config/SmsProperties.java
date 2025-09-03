@@ -13,8 +13,30 @@ public class SmsProperties {
     private String clientId;
     private String senderId;
 
+    private String numberFormat = "CC91";
+
+    // NEW: body type the provider expects
+    // values: "JSON" or "FORM"
+    private String transport = "JSON";
+
     private Dlt dlt = new Dlt();
     private Otp otp = new Otp();
+
+    public String getNumberFormat() {
+        return numberFormat;
+    }
+
+    public void setNumberFormat(String numberFormat) {
+        this.numberFormat = numberFormat;
+    }
+
+    public String getTransport() {
+        return transport;
+    }
+
+    public void setTransport(String transport) {
+        this.transport = transport;
+    }
 
     public String getBaseUrl() {
         return baseUrl;

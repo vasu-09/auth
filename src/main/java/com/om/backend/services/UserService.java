@@ -148,6 +148,8 @@ import com.om.backend.Model.UserChatPrefs;
 
 import com.om.backend.Repositories.UserChatPrefsRepository;
 import com.om.backend.Repositories.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -162,6 +164,9 @@ public class UserService {
 
     private final UserRepository userRepo;
     private final UserChatPrefsRepository ucpRepo;
+
+
+    private static final Logger log = LoggerFactory.getLogger(OtpService.class);
 
     public UserService(UserRepository userRepo, UserChatPrefsRepository ucpRepo) {
         this.userRepo = userRepo;
@@ -243,24 +248,28 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public ResponseEntity<List<Long>> getUserIdsByPhoneNumbers(List<String> phoneNumbers) {
+        log.info("This is the requested phoneNumber: phoneNumber={}", phoneNumbers);
         return new ResponseEntity<>(userRepo.findIdsByPhoneNumbers(phoneNumbers), HttpStatus.OK);
    }
 
 
     @Transactional(readOnly = true)
     public ResponseEntity<Long> getUserIdByPhoneNumber(String phoneNumber) {
+        log.info("This is the requested phoneNumber: phoneNumber={}", phoneNumber);
         return new ResponseEntity<>(userRepo.findUserIdByPhoneNumber(phoneNumber), HttpStatus.OK);
     }
 
 
     @Transactional(readOnly = true)
     public ResponseEntity<String> getPhoneNumberByUserID(Long id) {
+        log.info("This is the requested userID: UserId={}", id);
         return  new ResponseEntity<>(userRepo.findPhoneNumberByuserID(id), HttpStatus.OK);
     }
 
 
     @Transactional(readOnly = true)
     public ResponseEntity<List<String>> getPhoneNumbersByIds(List<Long> id) {
+        log.info("This is the requested userID: userID={}", id);
         return new ResponseEntity<>(userRepo.findPhoneNumbersByIds(id), HttpStatus.OK);
     }
 

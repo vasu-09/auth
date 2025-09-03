@@ -45,4 +45,8 @@ public class SendSmsResponse {
     public void setData(JsonNode data) {
         this.data = data;
     }
+
+    public boolean isOk() {
+        return errorCode == null || errorCode == 0;
+    }
 }

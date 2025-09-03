@@ -91,27 +91,34 @@ public class OtpController {
             return ResponseEntity.badRequest().build();
         }
 
-        // 1) Validate OTP and resolve userId (create user if you support just-in-time)
-        Long userId = otpService.verifyOtp(req.phone, req.otp); // returns userId or throws
+        try {
+            // 1) Validate OTP and resolve userId (create user if you support just-in-time)
+            Long userId = otpService.verifyOtp(req.phone, req.otp); // returns userId or throws
 
-        // 2) Create a sessionId and upsert the session row
-        String sessionId = UUID.randomUUID().toString();
-        String platform = isBlank(req.platform) ? "android" : req.platform;
-        userSessionService.createOrUpdateSession(userId, sessionId, req.deviceModel, platform, req.appVersion);
+            // 2) Create a sessionId and upsert the session row
+            String sessionId = UUID.randomUUID().toString();
+            String platform = isBlank(req.platform) ? "android" : req.platform;
+            userSessionService.createOrUpdateSession(userId, sessionId, req.deviceModel, platform, req.appVersion);
 
-        // 3) Mint tokens (IMPORTANT: include sid=sessionId in the JWTs)
-        String accessJwt  = otpService.mintAccessToken(userId, sessionId);
-        String refreshJwt = otpService.mintRefreshToken(userId, sessionId);
+            // 3) Mint tokens (IMPORTANT: include sid=sessionId in the JWTs)
+            String accessJwt  = otpService.mintAccessToken(userId, sessionId);
+            String refreshJwt = otpService.mintRefreshToken(userId, sessionId);
 
-        // 4) Bind refresh token to the session (store hash/jti/exp)
-        userSessionService.bindRefreshToken(userId, sessionId, refreshJwt);
+            // 4) Bind refresh token to the session (store hash/jti/exp)
+            userSessionService.bindRefreshToken(userId, sessionId, refreshJwt);
 
-        // 5) (Optional) Register/update FCM token for this device session
-        if (!isBlank(req.fcmToken)) {
-            userSessionService.registerOrUpdateDevice(userId, sessionId, req.fcmToken, req.deviceModel, req.appVersion, platform);
+            // 5) (Optional) Register/update FCM token for this device session
+            if (!isBlank(req.fcmToken)) {
+                userSessionService.registerOrUpdateDevice(userId, sessionId, req.fcmToken, req.deviceModel, req.appVersion, platform);
+            }
+
+            return ResponseEntity.ok(new LoginResponse(userId, sessionId, accessJwt, refreshJwt));
+        } catch (IllegalArgumentException e) {
+            // Thrown when OTP is invalid/expired/not requested. Return HTTP 400 instead of 500.
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
         }
 
-        return ResponseEntity.ok(new LoginResponse(userId, sessionId, accessJwt, refreshJwt));
+
     }
 
     /**

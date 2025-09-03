@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.data.domain.Persistable;
 
 import java.time.Instant;
 
@@ -11,11 +12,14 @@ import java.time.Instant;
 @Data
 @Getter
 @Setter
-public class UserSession {
+@Table(name="user_session")
+public class UserSession implements Persistable<String> {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+
     private String id; // Unique session ID
 
+    @Transient
+    private boolean isNewEntity = true;
 
     private  String phoneNumber;
     private String sessionToken; // JWT token or session token for authentication
@@ -46,6 +50,17 @@ public class UserSession {
 
     // --- getters/setters ---
 
+
+    @Override
+    public boolean isNew() {
+        return isNewEntity;
+    }
+
+    @PrePersist
+    @PostLoad
+    public void markNotNew() {
+        this.isNewEntity = false;
+    }
     public byte[] getRefreshTokenHash() {
         return refreshTokenHash;
     }

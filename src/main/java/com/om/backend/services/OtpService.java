@@ -164,7 +164,7 @@ private final ConcurrentMap<String, String> otpStore = new ConcurrentHashMap<>()
 //            redis.delete(key);
             otpStore.remove(phone);
             otpExpiry.remove(phone);
-        } else if (props.getOtp().isPersistForAudit()) {
+        } else {
             // Optional DB fallback when auditing is enabled
             Optional<Otp> audit = otpRepo.findByPhoneNumber(phone);
 //            if (audit.isEmpty() || Instant.now(clock).isAfter(audit.get().getExpiredAt())) {
@@ -176,9 +176,6 @@ private final ConcurrentMap<String, String> otpStore = new ConcurrentHashMap<>()
             }
             // clear audit row if you want true single-use semantics
             otpRepo.delete(audit.get());
-        } else {
-            // No OTP found and no DB audit fallback configured
-            throw new IllegalArgumentException("OTP expired or not requested");
         }
 
         // 2) resolve/create user

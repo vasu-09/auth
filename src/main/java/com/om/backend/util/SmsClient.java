@@ -33,6 +33,7 @@ public class SmsClient {
     private static final Logger log = LoggerFactory.getLogger(SmsClient.class);
 
     public SendSmsResponse sendOtpMessage(String message, String e164Mobile, boolean requestDlr) {
+
         SendSmsRequest req = new SendSmsRequest(
                 props.getApiKey(),
                 props.getClientId(),
@@ -40,6 +41,7 @@ public class SmsClient {
                 message,
                 e164Mobile
         );
+        try { log.info("MySMSMantra request ({}) : {}", objectMapper.writeValueAsString(req)); } catch (Exception ignore) {}
 
         return smsWebClient.post()
                 .uri("/SendSMS")
@@ -54,4 +56,6 @@ public class SmsClient {
                 })
                 .block();
     }
+
+
 }
