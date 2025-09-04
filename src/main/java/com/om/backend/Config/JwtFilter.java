@@ -53,7 +53,7 @@ public class JwtFilter extends OncePerRequestFilter {
             // ensure token is valid (signature + not expired)
             if (!jwtService.isTokenExpired(token)) {
                 UsernamePasswordAuthenticationToken authentoken =
-                        new UsernamePasswordAuthenticationToken(sub, null, List.of());
+                        new UsernamePasswordAuthenticationToken(sub, token, List.of());
                 authentoken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentoken);
             }

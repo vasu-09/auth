@@ -113,3 +113,4 @@ cors:
 app:
   clock:
     zone: Asia/Kolkata
+  issuer: ${JWT_ISSUER:http://localhost:8092}

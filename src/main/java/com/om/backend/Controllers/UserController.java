@@ -144,7 +144,7 @@ public class UserController {
         return  userService.getPhoneNumberByUserID(id);
     }
 
-    @PostMapping("/get-phone-fnumbers-by-ids")
+    @PostMapping("/get-phone-numbers-by-ids")
     public ResponseEntity<List<String>> getPhoneNumbersById(@RequestBody List<Long> id){
         return  userService.getPhoneNumbersByIds(id);
     }

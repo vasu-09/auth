@@ -8,6 +8,7 @@ import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.SecurityFilterChain;
@@ -43,9 +44,15 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(reg -> reg
-                        .requestMatchers("/auth/otp/send", "/auth/otp/verify").permitAll()
+                        .requestMatchers("/auth/otp/send", "/auth/otp/verify",
+                                "/.well-known/jwks.json", "/.well-known/openid-configuration").permitAll()
                         .anyRequest().authenticated()
-                );
+                )
+                // Ensure our JWT filter runs for every request before the
+                // standard username/password authentication filter so that
+                // Bearer tokens are processed and an authenticated context
+                // is established.
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
